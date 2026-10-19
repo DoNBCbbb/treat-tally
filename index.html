@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Treat Tally — Halloween Candy Estimator</title>
+<style>
+  :root {
+    --bg: #fff8f0;
+    --card: #ffffff;
+    --text: #2d1b0e;
+    --accent: #e67e22;
+    --accent-dark: #d35400;
+    --soft: #fdebd0;
+    --border: #f5cba7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 16px 16px calc(env(safe-area-inset-bottom) + 90px);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .wrap {
+    max-width: 420px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.6rem;
+    margin: 0 0 4px;
+    text-align: center;
+  }
+  .tagline {
+    text-align: center;
+    color: #7d6608;
+    margin: 0 0 20px;
+    font-size: 0.95rem;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  label {
+    display: block;
+    font-weight: 600;
+    margin: 12px 0 4px;
+    font-size: 0.9rem;
+  }
+  input, select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 1rem;
+    background: #fff;
+  }
+  button {
+    width: 100%;
+    padding: 14px;
+    margin-top: 16px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  button:active { background: var(--accent-dark); }
+  .results {
+    display: none;
+    background: var(--soft);
+    border-radius: 16px;
+    padding: 16px;
+    margin-top: 16px;
+    text-align: center;
+  }
+  .results h2 { margin: 0 0 12px; font-size: 1.3rem; }
+  .big {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent-dark);
+    margin: 4px 0;
+  }
+  .sub { font-size: 0.9rem; color: #5d4a32; }
+  .disclaimer {
+    font-size: 0.8rem;
+    color: #7f8c8d;
+    text-align: center;
+    margin: 24px 0 8px;
+  }
+  .footer {
+    text-align: center;
+    font-size: 0.85rem;
+    margin-top: 32px;
+    padding: 16px 0;
+    color: #5d4a32;
+  }
+  .footer a { color: var(--accent); text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎃 Treat Tally</h1>
+  <p class="tagline">Estimate how much candy you need for trick-or-treaters.</p>
+
+  <div class="card">
+    <label for="kids">Expected trick-or-treaters</label>
+    <input type="number" id="kids" min="1" value="50" inputmode="numeric">
+
+    <label for="pieces">Pieces per child</label>
+    <input type="number" id="pieces" min="1" max="10" value="2" inputmode="numeric">
+
+    <label for="buffer">Safety buffer (%)</label>
+    <input type="number" id="buffer" min="0" max="100" value="10" inputmode="numeric">
+
+    <label for="perbag">Pieces per bag</label>
+    <input type="number" id="perbag" min="1" value="40" inputmode="numeric">
+
+    <label for="price">Price per bag (optional, $)</label>
+    <input type="number" id="price" min="0" step="0.01" value="" placeholder="e.g. 8.99" inputmode="decimal">
+
+    <button id="calc">Calculate candy needed</button>
+  </div>
+
+  <div class="results" id="results">
+    <h2>Your candy plan</h2>
+    <div class="big" id="totalPieces">0</div>
+    <div class="sub">total pieces needed</div>
+    <div class="big" id="bags">0</div>
+    <div class="sub">bags to buy</div>
+    <div id="costBlock" style="display:none;">
+      <div class="big" id="cost">$0</div>
+      <div class="sub">estimated cost</div>
+    </div>
+    <p class="sub" id="breakdown" style="margin-top:12px;"></p>
+  </div>
+
+  <p class="disclaimer">General info based on common neighborhood guidelines (often 2 pieces + 10% buffer). Not professional advice. Adjust for weather, decorations, and your street’s usual traffic.</p>
+
+  <div class="footer">
+    Free from Fart Sprinkle Studios. Like it? Tip jar: <a href="https://payhip.com/b/804FN" target="_blank" rel="noopener">https://payhip.com/b/804FN</a>
+  </div>
+</div>
+
+<script>
+const kidsEl = document.getElementById('kids');
+const piecesEl = document.getElementById('pieces');
+const bufferEl = document.getElementById('buffer');
+const perbagEl = document.getElementById('perbag');
+const priceEl = document.getElementById('price');
+const calcBtn = document.getElementById('calc');
+const results = document.getElementById('results');
+const totalPiecesEl = document.getElementById('totalPieces');
+const bagsEl = document.getElementById('bags');
+const costEl = document.getElementById('cost');
+const costBlock = document.getElementById('costBlock');
+const breakdownEl = document.getElementById('breakdown');
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem('treatTally') || '{}');
+    if (s.kids) kidsEl.value = s.kids;
+    if (s.pieces) piecesEl.value = s.pieces;
+    if (s.buffer != null) bufferEl.value = s.buffer;
+    if (s.perbag) perbagEl.value = s.perbag;
+    if (s.price) priceEl.value = s.price;
+  } catch (e) {}
+}
+
+function save() {
+  localStorage.setItem('treatTally', JSON.stringify({
+    kids: kidsEl.value,
+    pieces: piecesEl.value,
+    buffer: bufferEl.value,
+    perbag: perbagEl.value,
+    price: priceEl.value
+  }));
+}
+
+function calculate() {
+  const kids = Math.max(1, parseInt(kidsEl.value) || 0);
+  const pieces = Math.max(1, parseInt(piecesEl.value) || 1);
+  const buffer = Math.max(0, parseFloat(bufferEl.value) || 0);
+  const perbag = Math.max(1, parseInt(perbagEl.value) || 1);
+  const price = parseFloat(priceEl.value) || 0;
+
+  const base = kids * pieces;
+  const total = Math.ceil(base * (1 + buffer / 100));
+  const bags = Math.ceil(total / perbag);
+  const cost = bags * price;
+
+  totalPiecesEl.textContent = total.toLocaleString();
+  bagsEl.textContent = bags;
+  if (price > 0) {
+    costEl.textContent = '$' + cost.toFixed(2);
+    costBlock.style.display = 'block';
+  } else {
+    costBlock.style.display = 'none';
+  }
+  breakdownEl.textContent = `${kids} kids × ${pieces} pieces = ${base} base. With ${buffer}% buffer → ${total} pieces. ${perbag} per bag → ${bags} bags.`;
+
+  results.style.display = 'block';
+  save();
+  results.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+calcBtn.addEventListener('click', calculate);
+[kidsEl, piecesEl, bufferEl, perbagEl, priceEl].forEach(el => el.addEventListener('input', save));
+load();
+</script>
+</body>
+</html>
